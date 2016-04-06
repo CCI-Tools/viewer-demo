@@ -1,0 +1,21 @@
+{
+  "name": "ccitbx",
+  "productName": "CCI Toolbox",
+  "version": "0.0.1",
+  "main": "main.js",
+  "author": "Norman Fomferra",
+  "description": "CCI Toolbox user interface prototype",
+  "license": "GPL-3.0",
+  "private": true,
+  "electronVersion": "0.36.0",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "jquery": "~1.6",
+    "jquery-ui": "~1.10.5"
+  },
+  "devDependencies": {
+    "electron-prebuilt": "^0.36.0"
+  }
+}

@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>CCI Toolbox GUI Prototype</title>
+    <script src="Cesium-1.17/Build/CesiumUnminified/Cesium.js"></script>
+    <style>
+        @import url(Cesium-1.17/Build/CesiumUnminified/Widgets/widgets.css);
+
+        #cesiumContainer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            overflow: hidden;
+            padding: 0;
+            font-family: sans-serif;
+        }
+
+        html {
+            height: 100%;
+        }
+
+        body {
+            background: #000;
+            color: #eee;
+            font-family: sans-serif;
+            font-size: 9pt;
+            padding: 0;
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .fullSize {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            border: none;
+            width: 100%;
+            height: 100%;
+        }
+
+        #loadingOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            opacity: 0.9;
+            width: 100%;
+            height: 100%;
+            display: none;
+        }
+
+        #loadingOverlay h1 {
+            text-align: center;
+            position: relative;
+            top: 50%;
+            margin-top: -0.5em;
+        }
+
+        .sandcastle-loading #loadingOverlay {
+            display: block;
+        }
+
+        .sandcastle-loading #toolbar {
+            display: none;
+        }
+
+        #toolbar {
+            margin: 5px;
+            padding: 2px 5px;
+            position: absolute;
+            background: rgba(42, 42, 42, 0.8);
+            border-radius: 4px;
+        }
+
+        #toolbar input {
+            vertical-align: middle;
+            padding-top: 2px;
+            padding-bottom: 2px;
+        }
+    </style>
+</head>
+<body>
+<div id="cesiumContainer"  class="fullSize"></div>
+<div id="loadingOverlay"><h1>Loading...</h1></div>
+<div id="toolbar">
+    <table>
+        <tbody>
+        <tr>
+            <td>Brightness</td>
+            <td>
+                <input min="0" max="3" step="0.02" data-bind="value: brightness, valueUpdate: 'input'" type="range">
+                <input size="5" data-bind="value: brightness" type="text">
+            </td>
+        </tr>
+        <tr>
+            <td>Contrast</td>
+            <td>
+                <input min="0" max="3" step="0.02" data-bind="value: contrast, valueUpdate: 'input'" type="range">
+                <input size="5" data-bind="value: contrast" type="text">
+            </td>
+        </tr>
+        <tr>
+            <td>Hue</td>
+            <td>
+                <input min="0" max="3" step="0.02" data-bind="value: hue, valueUpdate: 'input'" type="range">
+                <input size="5" data-bind="value: hue" type="text">
+            </td>
+        </tr>
+        <tr>
+            <td>Saturation</td>
+            <td>
+                <input min="0" max="3" step="0.02" data-bind="value: saturation, valueUpdate: 'input'" type="range">
+                <input size="5" data-bind="value: saturation" type="text">
+            </td>
+        </tr>
+        <tr>
+            <td>Gamma</td>
+            <td>
+                <input min="0" max="3" step="0.02" data-bind="value: gamma, valueUpdate: 'input'" type="range">
+                <input size="5" data-bind="value: gamma" type="text">
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+<script>
+    var viewer = new Cesium.Viewer('cesiumContainer', {
+        animation: false,
+        baseLayerPicker: false,
+        fullscreenButton: false,
+        geocoder: true,
+        homeButton: false,
+        infoBox: true,
+        sceneModePicker: true,
+        selectionIndicator: true,
+        timeline: false,
+        navigationHelpButton: true,
+        imageryProvider: new Cesium.BingMapsImageryProvider({
+            url: 'http://dev.virtualearth.net'
+        })
+    });
+
+    viewer.scene.moon = new Cesium.Moon();
+
+    viewer.scene.sun = new Cesium.Sun();
+    viewer.scene.sun.glowFactor = 2.0;
+
+    //viewer.scene.globe.enableLighting = true;
+    //viewer.scene.globe.tileCacheSize = 1000;
+
+    // See http://cesiumjs.org/2015/05/26/Graphics-Tech-in-Cesium-Stack/
+    //viewer.scene.debugShowCommands = true;
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Start Image Enhancements
+
+    var imageryLayers = viewer.imageryLayers;
+
+    // The viewModel tracks the state of our mini application.
+    var viewModel = {
+        brightness: 0,
+        contrast: 0,
+        hue: 0,
+        saturation: 0,
+        gamma: 0
+    };
+    // Convert the viewModel members into knockout observables.
+    Cesium.knockout.track(viewModel);
+
+    // Bind the viewModel to the DOM elements of the UI that call for it.
+    var toolbar = document.getElementById('toolbar');
+    Cesium.knockout.applyBindings(viewModel, toolbar);
+
+    // Make the active imagery layer a subscriber of the viewModel.
+    function subscribeLayerParameter(name) {
+        Cesium.knockout.getObservable(viewModel, name).subscribe(
+                function (newValue) {
+                    if (imageryLayers.length > 0) {
+                        var layer = imageryLayers.get(0);
+                        layer[name] = newValue;
+                    }
+                }
+        );
+    }
+    subscribeLayerParameter('brightness');
+    subscribeLayerParameter('contrast');
+    subscribeLayerParameter('hue');
+    subscribeLayerParameter('saturation');
+    subscribeLayerParameter('gamma');
+
+    // Make the viewModel react to base layer changes.
+    function updateViewModel() {
+        if (imageryLayers.length > 0) {
+            var layer = imageryLayers.get(0);
+            viewModel.brightness = layer.brightness;
+            viewModel.contrast = layer.contrast;
+            viewModel.hue = layer.hue;
+            viewModel.saturation = layer.saturation;
+            viewModel.gamma = layer.gamma;
+        }
+    }
+    imageryLayers.layerAdded.addEventListener(updateViewModel);
+    imageryLayers.layerRemoved.addEventListener(updateViewModel);
+    imageryLayers.layerMoved.addEventListener(updateViewModel);
+    updateViewModel();
+
+    // End Image Enhancements
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+    function addNE2() {
+        var imageryProvider = new Cesium.UrlTemplateImageryProvider({
+            url: ' http://localhost:8080/ccitbx/ne2/{z}/{y}/{x}.jpg',
+            tilingScheme: new Cesium.GeographicTilingScheme(),
+            maximumLevel: 2,
+            tileWidth: 256,
+            tileHeight: 256
+        });
+
+        var imageryLayer = viewer.imageryLayers.addImageryProvider(imageryProvider);
+        imageryLayer.alpha = 0.5;
+        imageryLayer.show = true;
+        imageryLayer.name = "Natural Earth 2";
+    }
+
+    function addOcCCI() {
+        var imageryProvider = new Cesium.UrlTemplateImageryProvider({
+            url: 'http://localhost:8080/ccitbx/FileVarTile/{z}/{y}/{x}.png?file=ESACCI-OC-L3S-CHLOR_A-MERGED-1M_MONTHLY_4km_GEO_PML_OC4v6-201301-fv2.0.nc&var=chlor_a',
+            tilingScheme: new Cesium.GeographicTilingScheme({
+                numberOfLevelZeroTilesX: 2,
+                numberOfLevelZeroTilesY: 1
+                //numberOfLevelZeroTilesX: 32,
+                //numberOfLevelZeroTilesY: 16
+            }),
+            minimumLevel: 0,
+            //maximumLevel: 0,
+            maximumLevel: 4,
+            tileWidth: 270,
+            tileHeight: 270
+        });
+
+        var imageryLayer = viewer.imageryLayers.addImageryProvider(imageryProvider);
+        imageryLayer.alpha = 0.8;
+        imageryLayer.show = true;
+        imageryLayer.name = "OC CCI";
+    }
+    function addDebugTiles() {
+        // See https://cesiumjs.org/Cesium/Build/Documentation/TileCoordinatesImageryProvider.html
+        imageryProvider = new Cesium.TileCoordinatesImageryProvider({
+            tilingScheme: new Cesium.GeographicTilingScheme({
+                //numberOfLevelZeroTilesX: 2,
+                //numberOfLevelZeroTilesY: 1
+                numberOfLevelZeroTilesX: 32,
+                numberOfLevelZeroTilesY: 16
+            }),
+            tileWidth: 270,
+            tileHeight: 270
+        });
+
+        var imageryLayer = viewer.imageryLayers.addImageryProvider(imageryProvider);
+        imageryLayer.alpha = 0.8;
+        imageryLayer.show = true;
+        imageryLayer.name = "Debug OC CCI";
+    }
+
+    //addNE2();
+    addOcCCI();
+    //addDebugTiles();
+
+</script>
+</body>
+</html>

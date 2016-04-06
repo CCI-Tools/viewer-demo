@@ -1,0 +1,13 @@
+.idea
+*.iml
+
+*.log
+
+target
+*.class
+*.jar
+*.nbm
+
+hs_err_pid*
+
+userdir

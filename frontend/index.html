@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<!--suppress ALL -->
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>CCI Toolbox Prototype (electron + Cesium + Python server)</title>
+    <script src="Cesium-1.17/ThirdParty/requirejs-2.1.20/require.js"></script>
+    <script src="Cesium-1.17/Build/CesiumUnminified/Cesium.js"></script>
+    <link rel="stylesheet" href="node_modules/jquery-ui/themes/smoothness/jquery-ui.css">
+    <!--<link rel="stylesheet" href="css/vader/jquery-ui-1.10.4.custom.css">-->
+    <link rel="stylesheet" href="css/vader-custom/jquery-ui-1.10.4.custom.css">
+    <style>
+        @import url(Cesium-1.17/Build/CesiumUnminified/Widgets/widgets.css);
+
+        #cesiumContainer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            overflow: hidden;
+            padding: 0;
+            font-family: sans-serif;
+        }
+
+        html {
+            height: 100%;
+        }
+
+        body {
+            background: #000;
+            color: #eee;
+            font-family: sans-serif;
+            font-size: 9pt;
+            padding: 0;
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .fullSize {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            border: none;
+            width: 100%;
+            height: 100%;
+        }
+
+        #loadingOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            opacity: 0.9;
+            width: 100%;
+            height: 100%;
+            display: none;
+        }
+
+        #loadingOverlay h1 {
+            text-align: center;
+            position: relative;
+            top: 50%;
+            margin-top: -0.5em;
+        }
+
+        #layerProperties #variables {
+            display: none;
+            margin: 5px;
+        }
+
+        #layerProperties input {
+            vertical-align: middle;
+            padding-top: 2px;
+            padding-bottom: 2px;
+        }
+
+        .ui-dialog,
+        .ui-widget,
+        .ui-widget-content,
+        .ui-corner-all,
+        .ui-draggable,
+        .ui-resizable {
+            opacity: 0.9
+        }
+
+        .color-map-table .ui-selecting {
+            background-color: #FECA40;
+        }
+
+        .color-map-table .ui-selected {
+            background-color: #F39814;
+            color: white;
+            padding: 5px 5px 5px 5px;
+        }
+
+        .color-map-table table {
+            border: 0;
+        }
+
+        .color-map-table td {
+            padding: 1px 1px 1px 1px;
+        }
+
+        #layerList .ui-selecting {
+            background: #FECA40;
+        }
+
+        #layerList .ui-selected {
+            background: #F39814;
+            color: white;
+        }
+
+        #layerList {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        #layerList li {
+            margin: 3px;
+            padding: 0.4em;
+        }
+
+        #dataFileList .ui-selecting {
+            background: #FECA40;
+        }
+
+        #dataFileList .ui-selected {
+            background: #F39814;
+            color: white;
+        }
+
+        #dataFileList {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        #dataFileList li {
+            margin: 3px;
+            padding: 0.4em;
+        }
+    </style>
+</head>
+<body>
+<div id="cesiumContainer" class="fullSize"></div>
+<div id="loadingOverlay"><h1>Loading...</h1></div>
+
+<!-- //////////////////////////////////////////////////////////////////////////////////////////////////////// -->
+<!-- // >>> Layer Properties Window -->
+
+<div id="layerPropertiesWindow" style="display:none">
+    <table>
+        <tbody>
+        <tr>
+            <td>Color map</td>
+            <td>
+                <img src="images/empty.png"
+                     data-bind="attr: {src: variableColorBar, alt: variableColorMap}, click: function(data, event) { selectColor(variableColorMap); }"
+                     width="100%" height="100%">
+
+                <!--<img src="images/empty.png"-->
+                <!--data-bind="attr: {src: variableColorBar, alt: variableColorMap}"-->
+                <!--width="100%" height="100%">-->
+            </td>
+        </tr>
+        <tr>
+            <td>Min/max</td>
+            <td>
+                <input type="text" size="5" data-bind="value: variableDisplayMin">
+                <input type="text" size="5" data-bind="value: variableDisplayMax">
+                <input type="checkbox" data-bind="checked: variableDisplayAlpha">
+                alpha
+            </td>
+        </tr>
+        <tr>
+            <td>Opacity</td>
+            <td>
+                <input type="range" min="0.0" max="1.0" step="0.01" data-bind="value: alpha, valueUpdate: 'input'">
+                <input type="text" size="5" data-bind="value: alpha">
+            </td>
+        </tr>
+        <tr>
+            <td>Brightness</td>
+            <td>
+                <input type="range" min="0" max="3" step="0.02" data-bind="value: brightness, valueUpdate: 'input'">
+                <input type="text" size="5" data-bind="value: brightness">
+            </td>
+        </tr>
+        <tr>
+            <td>Contrast</td>
+            <td>
+                <input type="range" min="0" max="3" step="0.02" data-bind="value: contrast, valueUpdate: 'input'">
+                <input type="text" size="5" data-bind="value: contrast">
+            </td>
+        </tr>
+        <tr>
+            <td>Hue</td>
+            <td>
+                <input type="range" min="0" max="3" step="0.02" data-bind="value: hue, valueUpdate: 'input'">
+                <input type="text" size="5" data-bind="value: hue">
+            </td>
+        </tr>
+        <tr>
+            <td>Saturation</td>
+            <td>
+                <input type="range" min="0" max="3" step="0.02" data-bind="value: saturation, valueUpdate: 'input'">
+                <input type="text" size="5" data-bind="value: saturation">
+            </td>
+        </tr>
+        <tr>
+            <td>Gamma</td>
+            <td>
+                <input type="range" min="0" max="3" step="0.02" data-bind="value: gamma, valueUpdate: 'input'">
+                <input type="text" size="5" data-bind="value: gamma">
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- // <<< Layer Properties Window
+<!-- //////////////////////////////////////////////////////////////////////////////////////////////////////// -->
+
+<!-- //////////////////////////////////////////////////////////////////////////////////////////////////////// -->
+<!-- // >>> Layers Window -->
+
+<div id="layersWindow" style="display:none">
+    <ul id="layerList" data-bind="foreach: variables">
+        <li class="ui-widget-content">
+            <input type="checkbox" data-bind="id: $index, value: variableName, checked: $parent.visibleLayerNames"/>
+            <b><span data-bind="text: variableName"></span></b> -
+            <i><span data-bind="text: variableType"></span></i>
+        </li>
+    </ul>
+</div>
+
+<!-- // <<< Layers Window -->
+<!-- //////////////////////////////////////////////////////////////////////////////////////////////////////// -->
+
+
+<!-- //////////////////////////////////////////////////////////////////////////////////////////////////////// -->
+<!-- // >>> Data Files Window -->
+
+<div id="dataFilesWindow" style="display:none">
+    <ul id="dataFileList" data-bind="foreach: dataFiles">
+        <li class="ui-widget-content">
+            <span data-bind="text: fileName"></span>
+        </li>
+    </ul>
+</div>
+
+<!-- // <<< Data Files Window -->
+<!-- //////////////////////////////////////////////////////////////////////////////////////////////////////// -->
+
+
+<!-- //////////////////////////////////////////////////////////////////////////////////////////////////////// -->
+<!-- // >>> Variable Info Window -->
+
+<div id="variableInfoWindow" style="display:none">
+    <p>Variable <b><span data-bind="text: variableName">?</span></b>:
+    </p>
+    <table>
+        <tbody data-bind="foreach: variableAttributes">
+        <tr>
+            <td data-bind="text: attributeName">:</td>
+            <td data-bind="text: attributeValue"></td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+
+// <<< Variable Info Window -->
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+<!-- //////////////////////////////////////////////////////////////////////////////////////////////////////// -->
+<!-- // >>> File Info Window -->
+
+<div id="fileInfoWindow" style="display:none">
+    <p>File <b><span data-bind="text: fileName">?</span></b>:
+    </p>
+    <table>
+        <tbody data-bind="foreach: fileAttributes">
+        <tr>
+            <td data-bind="text: attributeName">:</td>
+            <td data-bind="text: attributeValue"></td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- // <<< File Info Window -->
+<!-- //////////////////////////////////////////////////////////////////////////////////////////////////////// -->
+
+<!-- //////////////////////////////////////////////////////////////////////////////////////////////////////// -->
+<!-- // >>> Color Maps Window -->
+
+<div id="colorMapsWindow" style="display:none">
+    <div data-bind="foreach: colorMapCategories">
+        <p data-bind="text: categoryName, attr: { title: categoryDesc }"></p>
+        <table class="color-map-table">
+            <tbody data-bind="foreach: colorMaps">
+            <tr>
+                <td data-bind="text: colorMapName">:</td>
+                <!-- todo: style: images are aligned bottom-right, why? it's ugly when selected! -->
+                <td>
+                    <img src="images/empty.png"
+                         data-bind="attr: {src: colorBarData, alt: colorMapName}, click: function(data, event) { $root.selectColorMap(colorMapName); }"
+                         width="100%" height="100%" style="vertical-align: middle">
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- // <<< Color Maps Window -->
+<!-- //////////////////////////////////////////////////////////////////////////////////////////////////////// -->
+
+<!-- //////////////////////////////////////////////////////////////////////////////////////////////////////// -->
+<!-- // >>> Time-Series Plot Window -->
+
+<div id="timeSeriesPlotWindow" style="padding:0; margin:0; overflow:hidden; display:none">
+    <!-- todo: style: let the plotly plot fill available space  -->
+    <!-- <p>No data available.</p> -->
+</div>
+
+<!-- // <<< Time-Series Plot Window -->
+<!-- //////////////////////////////////////////////////////////////////////////////////////////////////////// -->
+
+<!-- A sink for the credits shown in the Cesium viewer -->
+<div id="creditContainer" style="display:none">
+</div>
+
+<script>
+    var electron = require('electron');
+    var $ = jQuery = require('jquery');
+    require('jquery-ui');
+    var Plotly = require('./lib/plotly-latest.min.js');
+
+    // reuse KnockoutJS module bundled with Cesium, see http://knockoutjs.com/documentation/introduction.html
+    var ko = Cesium.knockout;
+    var ipc = electron.ipcRenderer;
+
+    $(function () {
+        // check: later we might want to connect to any remote service. then, get this value from config
+        SERVER_BASE = 'http://localhost:8080/ccitbx/';
+
+        // Global color maps
+        CMAPS = null;
+        // Global color bars: cmap name -> base64 image date
+        CBARS = null;
+
+        function getCartographicPosString(cartographicPos) {
+            var lonString = Cesium.Math.toDegrees(cartographicPos.longitude).toFixed(2);
+            var latString = Cesium.Math.toDegrees(cartographicPos.latitude).toFixed(2);
+            return lonString + 'E,' + latString + 'N';
+        }
+
+        var DataFile = function (fileInfo) {
+            var self = this;
+            /**
+             * original filePath as it comes from the engine
+             * @type {string}
+             */
+            self.filePath = fileInfo.filePath;
+            /**
+             * original fileName as it comes from the engine
+             * @type {string}
+             */
+            self.fileName = fileInfo.fileName;
+            /**
+             * original fileInfo as it comes from the engine
+             * @type {object}
+             */
+            self.fileInfo = fileInfo;
+            /**
+             * Variable instances
+             * @type {Array<Variable>}
+             */
+            self.variables = [];
+            /**
+             * Names of visible layers.
+             */
+            self.visibleLayerNames = [];
+
+            var i, name, variable,
+                    variables = [],
+                    variableInfos = fileInfo.variableInfos;
+            for (i = 0; i < variableInfos.length; i++) {
+                var variableInfo = variableInfos[i];
+                // For time being, only collect variables that can have a layer
+                if (variableInfo.imageConfig) {
+                    name = variableInfo.name;
+                    if (name && name.startsWith('/')) {
+                        name = name.substring(1);
+                    }
+                    variable = new Variable(self, name, variableInfo, i);
+                    variables.push(variable);
+                }
+            }
+            for (i in variables) {
+                variables[i].createImageryLayer();
+            }
+            variables.sort(function (v1, v2) {
+                return v1.variableName < v2.variableName ? -1 : v1.variableName > v2.variableName ? 1 : 0;
+            })
+
+            self.variables = variables;
+
+            /**
+             * Disposes this data file instance by destroying all associated layers.
+             */
+            self.dispose = function () {
+                for (var i in this.variables) {
+                    this.variables[i].destroyImageryLayer();
+                }
+                this.variables = [];
+            };
+        }
+
+        /**
+         * Note, we currently only store variables that can have a visible Cesium imagery layer.
+         * Later, we must support variables that may have geometry primitives in Cesium or no visual representation
+         * at all.
+         * So we have to separate variables from layers.
+         */
+        var Variable = function (dataFile, variableName, variableInfo, variableIndex) {
+            var self = this;
+            /**
+             * The parent data file.
+             * @type {DataFile}
+             */
+            self.dataFile = dataFile;
+            /**
+             * Variable name.
+             * @type {string}
+             */
+            self.variableName = variableName;
+            /**
+             * Variable type string.
+             * @type {string}
+             */
+            self.variableType = variableInfo.type = variableInfo.dtype + '(' + variableInfo.shape + ')';
+            /**
+             * Index into variableInfo.
+             * @type {number}
+             */
+            self.variableIndex = variableIndex;
+            /**
+             * original variableInfo from DataFile.fileInfo
+             * @type {object}
+             */
+            self.variableInfo = variableInfo;
+
+            // todo - enhance architecture:
+            // - put the following properties into a new class VariableLayerRef,
+            // - create ViewerViewModel class that holds a Cesium viewer instance and a list of VariableLayerRefs
+            // - add list of currently open Cesium viewers and the currently selectedViewer to AppViewModel
+            // - allow for multiple viewers in the UI, allow switching beween tabs or tiled views
+            // - try to get rid of selectedDataFile, because a single, selected dataFile does not make too much sense
+            //   in the CCI Toolbox
+
+            /**
+             * Image layer color map. The color bar is CBARS[variableColorMap].
+             * @type {string}
+             */
+            self.variableColorMap = 'jet'; // may come from variableInfo later
+            /**
+             * Image layer minimum display value.
+             * @type {number}
+             */
+            self.variableDisplayMin = 0; // may come from variableInfo later
+            /**
+             * Image layer maximum display value.
+             * @type {number}
+             */
+            self.variableDisplayMax = 1; // may come from variableInfo later
+            /**
+             * Whether to blend alpha 0...1 at bottom value range.
+             * @type {boolean}
+             */
+            self.variableDisplayAlpha = false;
+            /**
+             * The associated imagery layer
+             * @type {Cesium.ImageryLayer}
+             */
+            self.imageryLayer = null;
+            /**
+             * The associated imagery layer URL. Used for change detection.
+             * @type {Cesium.ImageryLayer}
+             */
+            self.imageryLayerUrl = null;
+
+            if (variableInfo.valid_min) {
+                self.variableDisplayMin = variableInfo.valid_min;
+            }
+            if (variableInfo.valid_max) {
+                self.variableDisplayMax = variableInfo.valid_max;
+            }
+
+            /**
+             * Creates a new imagery layer for this variable.
+             * @type {Cesium.ImageryLayer}
+             * @returns a new layer instance
+             */
+            self.createImageryLayer = function () {
+                var imageryLayerUrl = SERVER_BASE + 'FileVarTile/{z}/{y}/{x}.png?'
+                        + 'file=' + encodeURIComponent(this.dataFile.filePath)
+                        + '&var=' + encodeURIComponent(this.variableName)
+                        + '&cmap=' + encodeURIComponent(this.variableColorMap) + (this.variableDisplayAlpha ? '_alpha' : '')
+                        + '&min=' + encodeURIComponent(this.variableDisplayMin + '')
+                        + '&max=' + encodeURIComponent(this.variableDisplayMax + '');
+                // as it is a RESTful call: avoid layer regeneration when there is no layer property change
+                if (imageryLayerUrl === this.imageryLayerUrl) {
+                    if (this.imageryLayer != null) {
+                        // no change, so return immediately
+                        return this.imageryLayer;
+                    }
+                }
+                var imageConfig = this.variableInfo.imageConfig;
+                // see https://cesiumjs.org/Cesium/Build/Documentation/UrlTemplateImageryProvider.html
+                var imageryProvider = new Cesium.UrlTemplateImageryProvider({
+                    url: imageryLayerUrl,
+                    // # todo - use imageConfig.sector to specify 'rectangle' option. See backend todo.
+                    // rectangle: new Cesium.Rectangle(west, south, east, north),
+                    minimumLevel: 0,
+                    maximumLevel: imageConfig.numLevels - 1,
+                    tileWidth: imageConfig.tileWidth,
+                    tileHeight: imageConfig.tileHeight,
+                    tilingScheme: new Cesium.GeographicTilingScheme({
+                        numberOfLevelZeroTilesX: imageConfig.numLevelZeroTilesX,
+                        numberOfLevelZeroTilesY: imageConfig.numLevelZeroTilesY
+                    })
+                });
+
+                var oldLayer = this.imageryLayer;
+                if (oldLayer != null) {
+                    var oldIndex = viewer.imageryLayers.indexOf(oldLayer);
+                    var imageryLayer = viewer.imageryLayers.addImageryProvider(imageryProvider, oldIndex);
+                    imageryLayer.show = oldLayer.show;
+                    imageryLayer.alpha = oldLayer.alpha;
+                    // check: we may want to adjust contrast, brightness, hue, etc from oldLayer
+                    imageryLayer.name = this.variableName;
+                    viewer.imageryLayers.remove(oldLayer, true);
+                } else {
+                    var imageryLayer = viewer.imageryLayers.addImageryProvider(imageryProvider);
+                    imageryLayer.show = false;
+                    imageryLayer.alpha = 0.9;
+                    imageryLayer.name = this.variableName;
+                }
+
+                this.imageryLayer = imageryLayer;
+                this.imageryLayerUrl = imageryLayerUrl;
+                return imageryLayer;
+            }
+
+            /**
+             * Destroys the variable's imagery layer, if any.
+             */
+            self.destroyImageryLayer = function () {
+                if (this.imageryLayer !== null) {
+                    console.log('Destroying imagery layer "' + this.imageryLayer.name + '"');
+                    viewer.imageryLayers.remove(this.imageryLayer, true);
+                    this.imageryLayer = null;
+                    this.imageryLayerUrl = null;
+                }
+            }
+        };
+
+        var AppViewModel = function () {
+            var self = this;
+            self.dataFiles = ko.observableArray([]);
+            self.selectedDataFile = ko.observable(null);
+            self.poiEntities = ko.observableArray([]);
+
+            self.selectedDataFile.subscribe(function (selectedDataFile) {
+                dataFileViewModel.updateFromDataFile(selectedDataFile);
+            });
+
+            self.poiEntities.subscribe(function (poiEntities) {
+                console.log("POI entities changed: " + poiEntities);
+            });
+
+            self.addDataFile = function (dataFile, selectIt) {
+                this.dataFiles.push(dataFile);
+                if (selectIt === true) {
+                    this.selectedDataFile(dataFile);
+                }
+            };
+
+            self.removeDataFile = function (dataFile) {
+                var index = this.dataFiles.indexOf(dataFile);
+                if (index >= 0) {
+                    if (this.selectedDataFile() === dataFile) {
+                        this.selectedDataFile(null);
+                    }
+                    this.dataFiles.splice(index, 1);
+                    dataFile.dispose();
+                }
+            };
+
+            self.removeAllDataFiles = function () {
+                var array = this.dataFiles();
+                this.selectedDataFile(null);
+                this.dataFiles([]);
+                for (var index in array) {
+                    var dataFile = array[index];
+                    dataFile.dispose();
+                }
+            };
+        }
+
+        var DataFileViewModel = function () {
+            var self = this;
+            self.dataFile = null;
+            self.variables = ko.observableArray();
+            self.selectedVariable = ko.observable(null);
+            self.selectedLayer = ko.observable(null);
+
+            self.updateFromDataFile = function (dataFile) {
+                if (dataFile != null) {
+                    this.dataFile = dataFile;
+                    this.variables(dataFile.variables);
+                    // Note: last values (or their indexes/keys) of following selected<X> values may
+                    // also be stored in dataFile
+                    this.selectedVariable(null);
+                    this.selectedLayer(null);
+                } else {
+                    this.dataFile = null;
+                    this.variables([]);
+                    this.selectedVariable(null);
+                    this.selectedLayer(null);
+                }
+            };
+
+        }
+
+        function showWindow(divId) {
+            var $windowDiv = $('#' + divId);
+            if (!$windowDiv.dialog('isOpen')) {
+                $windowDiv.dialog('open');
+            }
+            $windowDiv.dialog('moveToTop');
+        }
+
+
+        // The appViewModel singleton hosts the data file list and the currently selected data file
+        // and notifies subscribers about any changes.
+        var appViewModel = new AppViewModel();
+
+        // The dataFileViewModel singleton hosts the variable states of the selected data file and hosts the
+        // currently selected variable and layer and notifies subscribers about any changes.
+        var dataFileViewModel = new DataFileViewModel();
+
+        ipc.on('open-data-file', function (event, filePath) {
+            var uri = SERVER_BASE + 'FileOpen?file=' + encodeURIComponent(filePath);
+            $.getJSON(uri, function (fileInfo) {
+                // Add new data file and select it
+                var dataFile = new DataFile(fileInfo);
+                appViewModel.addDataFile(dataFile, true);
+            }).fail(function (msg) {
+                console.log('error: ' + JSON.stringify(msg, null, 4));
+                ipc.send('handle-error', 'Failed to open file.', msg);
+            });
+        });
+
+        ipc.on('close-data-file', function (event) {
+            var dataFile = appViewModel.selectedDataFile();
+            if (dataFile != null) {
+                console.log('Closing ' + dataFile.filePath);
+                appViewModel.removeDataFile(dataFile);
+            }
+        });
+        ipc.on('add-point-of-interest', function (event) {
+            console.log('add POI tool enabled');
+
+            // Mouse over the globe to see the cartographic position
+            var handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+            handler.setInputAction(function (movement) {
+                var cartesianPos = viewer.camera.pickEllipsoid(movement.position, viewer.scene.globe.ellipsoid);
+                if (cartesianPos) {
+                    var cartographicPos = Cesium.Cartographic.fromCartesian(cartesianPos);
+                    var posString = getCartographicPosString(cartographicPos);
+                    var poiId = appViewModel.poiEntities().length + 1;
+                    var poiEntity = new Cesium.Entity({
+                        name: 'POI #' + poiId,
+                        position: cartesianPos,
+                        description: 'POI #' + poiId + ' at ' + posString,
+                        point: {
+                            pixelSize: 10,
+                            outlineColor: Cesium.Color.BLUE,
+                            outlineWidth: 0.5,
+                            color: Cesium.Color.YELLOW
+                        }
+                    });
+                    poiEntity.poiId = poiId;
+                    appViewModel.poiEntities.push(poiEntity);
+                    viewer.entities.add(poiEntity);
+                    viewer.selectedEntity = poiEntity;
+                }
+                handler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_CLICK);
+            }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+        });
+
+        ipc.on('remove-point-of-interest', function (event) {
+            console.log('remove POI');
+            var selectedEntity = viewer.selectedEntity;
+            if (selectedEntity !== null) {
+                var removedPois = appViewModel.poiEntities.remove(selectedEntity);
+                for (var i = 0; i < removedPois.length; i++) {
+                    var poi = removedPois[i];
+                    viewer.entities.remove(poi);
+                }
+            }
+        });
+
+        ipc.on('remove-all-points-of-interest', function (event) {
+            console.log('remove all POIs');
+            var removedPois = appViewModel.poiEntities.removeAll();
+            for (var i = 0; i < removedPois.length; i++) {
+                var poi = removedPois[i];
+                viewer.entities.remove(poi);
+            }
+        });
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // >>> Cesium Viewer
+
+        // Bing Maps Key associated with Account Id 1441410 (= norman.fomferra@brockmann-consult.de)
+        // * Application Name: CCI Toolbox
+        // * Key / Application Type: Basic / Dev/Test
+        // * Application URL: http://cci.esa.int/
+        //
+        Cesium.BingMapsApi.defaultKey = 'AnCcpOxnAAgq-KyFcczSZYZ_iFvCOmWl0Mx-6QzQ_rzMtpgxZrPZZNxa8_9ZNXci';
+
+        // todo: enable this by configuration, e.g. a switch -ccitbxui-offline-mode
+        var offlineMode = false;
+
+        var baseLayerImageryProvider;
+        if (offlineMode) {
+            baseLayerImageryProvider = new Cesium.TileMapServiceImageryProvider({
+                url : Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII'),
+                fileExtension: 'jpg',
+                tilingScheme: new Cesium.GeographicTilingScheme(),
+                minimumLevel: 0,
+                maximumLevel: 2,
+            });
+        } else {
+            baseLayerImageryProvider = new Cesium.BingMapsImageryProvider({
+                url: 'http://dev.virtualearth.net'
+            });
+        }
+
+        /*
+         * The global viewer. Currently we only have one, but we can have more later.
+         */
+        var viewer = new Cesium.Viewer('cesiumContainer', {
+            animation: false,
+            baseLayerPicker: false,
+            fullscreenButton: false,
+            geocoder: true,
+            homeButton: false,
+            infoBox: false,
+            sceneModePicker: true,
+            selectionIndicator: true,
+            timeline: false,
+            navigationHelpButton: true,
+            creditContainer: 'creditContainer',
+            imageryProvider: baseLayerImageryProvider
+        });
+
+        viewer.scene.moon = new Cesium.Moon();
+        viewer.scene.sun = new Cesium.Sun();
+        viewer.scene.sun.glowFactor = 2.0;
+        //viewer.scene.globe.enableLighting = true;
+        //viewer.scene.globe.tileCacheSize = 1000;
+        // See http://cesiumjs.org/2015/05/26/Graphics-Tech-in-Cesium-Stack/
+        //viewer.scene.debugShowCommands = true;
+
+        // <<< Cesium Viewer
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // >>> Data Files Window
+
+        ipc.on('show-data-files-window', function (event, args) {
+            showWindow('dataFilesWindow');
+        });
+
+        var dataFileListElement = $('#dataFileList')[0];
+        ko.applyBindings(appViewModel, dataFileListElement);
+        $('#dataFileList').selectable({
+            stop: function () {
+                // weird code, but see http://jqueryui.com/selectable/#serialize
+                var selectedIndex = -1;
+                var selectedItem = $('.ui-selected', this).each(function () {
+                    selectedIndex = $('#dataFileList li').index(this);
+                });
+                console.log('selected data file index = ' + selectedIndex);
+                if (selectedIndex >= 0) {
+                    var dataFile = appViewModel.dataFiles()[selectedIndex];
+                    appViewModel.selectedDataFile(dataFile);
+                } else {
+                    appViewModel.selectedDataFile(null);
+                }
+            }
+        });
+        appViewModel.dataFiles.subscribe(function (dataFiles) {
+            if (dataFiles != null) {
+                var selectedDataFile = appViewModel.selectedDataFile();
+                if (dataFiles.indexOf(selectedDataFile) < 0) {
+                    if (dataFiles.length > 0) {
+                        appViewModel.selectedDataFile(dataFiles[0]);
+                    } else {
+                        appViewModel.selectedDataFile(null);
+                    }
+                }
+            } else {
+                appViewModel.selectedDataFile(null);
+            }
+        });
+        appViewModel.selectedDataFile.subscribe(function (selectedDataFile) {
+            // todo - set '.ui-selected' class on 'li' of '#dataFileList' to reflect currently selectedDataFile
+        });
+
+        $('#dataFilesWindow').dialog({
+            title: 'Data Files',
+            width: 640,
+            autoOpen: false,
+            modal: false,
+            position: {my: "left top", at: "left bottom", of: window},
+        });
+
+        // <<< Data Files Window
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // >>> Layers Window
+
+        ipc.on('show-layers-window', function (event, args) {
+            showWindow('layersWindow');
+        });
+
+        var LayerListViewModel = function () {
+            var self = this;
+            self.variables = ko.observableArray();
+            self.visibleLayerNames = ko.observableArray();
+        };
+
+        var layerListViewModel = new LayerListViewModel();
+        var layerListElement = $('#layerList')[0];
+        ko.applyBindings(layerListViewModel, layerListElement);
+        $('#layerList').selectable({
+            stop: function () {
+                // weird code, but see http://jqueryui.com/selectable/#serialize
+                var selectedIndex = -1;
+                var selectedItem = $('.ui-selected', this).each(function () {
+                    selectedIndex = $('#layerList li').index(this);
+                });
+                console.log('selected variable index = ' + selectedIndex);
+                if (selectedIndex >= 0) {
+                    var variable = dataFileViewModel.variables()[selectedIndex];
+                    dataFileViewModel.selectedLayer(variable.imageryLayer);
+                    dataFileViewModel.selectedVariable(variable);
+                } else {
+                    dataFileViewModel.selectedLayer(null);
+                    dataFileViewModel.selectedVariable(null);
+                }
+            }
+        });
+        layerListViewModel.visibleLayerNames.subscribe(function (visibleLayerNames) {
+            console.log('layerList.visibleLayerNames = ' + visibleLayerNames);
+            var i, name;
+            var visibleLayerNamesLookup = {};
+            for (i in visibleLayerNames) {
+                visibleLayerNamesLookup[visibleLayerNames[i]] = true;
+            }
+            var variables = dataFileViewModel.variables();
+            for (i in variables) {
+                var variable = variables[i];
+                if (variable.imageryLayer !== null) {
+                    variable.imageryLayer.show = visibleLayerNamesLookup.hasOwnProperty(variable.variableName);
+                }
+            }
+        });
+        // todo - instead subscribe to dataFiles and add all 2D-variables to layerListViewModel.variables
+        appViewModel.selectedDataFile.subscribe(function (dataFile) {
+            var oldSelectedDataFile = appViewModel.selectedDataFile();
+            if (this === appViewModel.selectedDataFile) {
+                alert("It's TRUE!");
+            }
+            if (oldSelectedDataFile) {
+                oldSelectedDataFile.visibleLayerNames = layerListViewModel.visibleLayerNames();
+            }
+            if (dataFile != null) {
+                layerListViewModel.variables(dataFile.variables);
+                layerListViewModel.visibleLayerNames(dataFile.visibleLayerNames);
+            } else {
+                layerListViewModel.variables([]);
+                layerListViewModel.visibleLayerNames([]);
+            }
+        });
+
+
+        $('#layersWindow').dialog({
+            title: 'Layers',
+            width: 320,
+            autoOpen: false,
+            modal: false,
+            position: {my: "left bottom", at: "left top", of: window},
+        });
+
+        // <<< Layers Window
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // >>> Layer Properties Window
+
+        ipc.on('show-layer-properties-window', function (event, args) {
+            showWindow('layerPropertiesWindow');
+        });
+
+        // The viewModel tracks the state of our mini application.
+        var LayerPropertiesViewModel = function () {
+            this.variableColorMap = ko.observable('');
+            this.variableColorBar = ko.computed(function () {
+                var cmap = this.variableColorMap();
+                if (CBARS != null && CBARS.hasOwnProperty(cmap)) {
+                    return 'data:image/png;base64,' + CBARS[cmap];
+                } else {
+                    return 'images/empty.png'
+                }
+            }, this);
+            this.variableDisplayMin = ko.observable(0);
+            this.variableDisplayMax = ko.observable(0);
+            this.variableDisplayAlpha = ko.observable(false);
+            this.alpha = ko.observable(1);
+            this.brightness = ko.observable(0);
+            this.contrast = ko.observable(0);
+            this.hue = ko.observable(0);
+            this.saturation = ko.observable(0);
+            this.gamma = ko.observable(0);
+
+            this.selectColor = function (colorMapName) {
+                var $colorMapsWindow = $('#colorMapsWindow');
+                if (!$colorMapsWindow.dialog("isOpen")) {
+                    $colorMapsWindow.dialog("open");
+                }
+                $colorMapsWindow.dialog("moveToTop");
+            };
+
+            this.updateFromVariable = function (variable) {
+                if (variable !== null) {
+                    this.variableColorMap(variable.variableColorMap);
+                    this.variableDisplayMin(variable.variableDisplayMin);
+                    this.variableDisplayMax(variable.variableDisplayMax);
+                    this.variableDisplayAlpha(variable.variableDisplayAlpha);
+                } else {
+                    this.variableColorMap('');
+                    this.variableDisplayMin(0);
+                    this.variableDisplayMax(1);
+                    this.variableDisplayAlpha(false);
+                }
+            }
+
+            this.updateFromLayer = function (layer) {
+                if (layer !== null) {
+                    this.alpha(layer.alpha);
+                    this.brightness(layer.brightness);
+                    this.contrast(layer.contrast);
+                    this.hue(layer.hue);
+                    this.saturation(layer.saturation);
+                    this.gamma(layer.gamma);
+                } else {
+                    // ?
+                }
+            }
+        };
+
+        var layerPropertiesViewModel = new LayerPropertiesViewModel();
+        var layerPropertiesElement = $('#layerPropertiesWindow')[0];
+        ko.applyBindings(layerPropertiesViewModel, layerPropertiesElement);
+
+        function subscribeToLayerPropertiesViewModel1(propertyName) {
+            layerPropertiesViewModel[propertyName].subscribe(function (newValue) {
+                var targetVariable = dataFileViewModel.selectedVariable();
+                if (targetVariable !== null) {
+                    targetVariable[propertyName] = newValue;
+                    var newLayer = targetVariable.createImageryLayer();
+                    dataFileViewModel.selectedLayer(newLayer);
+                }
+            });
+        }
+
+        function subscribeToLayerPropertiesViewModel2(propertyName) {
+            layerPropertiesViewModel[propertyName].subscribe(function (newValue) {
+                var targetLayer = dataFileViewModel.selectedLayer();
+                if (targetLayer == null && viewer.imageryLayers.length > 0) {
+                    targetLayer = viewer.imageryLayers.get(0);
+                }
+                if (targetLayer !== null && targetLayer.hasOwnProperty(propertyName)) {
+                    targetLayer[propertyName] = newValue;
+                }
+            });
+        }
+
+        // Make the active imagery layer a subscriber of the viewModel.
+        subscribeToLayerPropertiesViewModel1('variableColorMap');
+        subscribeToLayerPropertiesViewModel1('variableDisplayMin');
+        subscribeToLayerPropertiesViewModel1('variableDisplayMax');
+        subscribeToLayerPropertiesViewModel1('variableDisplayAlpha');
+        subscribeToLayerPropertiesViewModel2('alpha');
+        subscribeToLayerPropertiesViewModel2('brightness');
+        subscribeToLayerPropertiesViewModel2('contrast');
+        subscribeToLayerPropertiesViewModel2('hue');
+        subscribeToLayerPropertiesViewModel2('saturation');
+        subscribeToLayerPropertiesViewModel2('gamma');
+
+        dataFileViewModel.selectedVariable.subscribe(function (variable) {
+            layerPropertiesViewModel.updateFromVariable(variable);
+        });
+        layerPropertiesViewModel.updateFromVariable(dataFileViewModel.selectedVariable());
+
+        dataFileViewModel.selectedLayer.subscribe(function (layer) {
+            layerPropertiesViewModel.updateFromLayer(layer);
+        });
+        layerPropertiesViewModel.updateFromLayer(dataFileViewModel.selectedLayer());
+
+        //viewer.imageryLayers.layerAdded.addEventListener(updateLayerPropertiesViewModel);
+        //viewer.imageryLayers.layerRemoved.addEventListener(updateLayerPropertiesViewModel);
+        //viewer.imageryLayers.layerMoved.addEventListener(updateLayerPropertiesViewModel);
+
+        $("#layerPropertiesWindow").dialog({
+            title: 'Layer Properties',
+            width: 320,
+            height: 400,
+            autoOpen: false,
+            modal: false,
+            position: {my: "right top", at: "right top", of: window},
+        });
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // >>> Color Bar Window
+
+        ipc.on('show-color-maps-window', function (event, args) {
+            showWindow('colorMapsWindow');
+        });
+
+        // Bind the viewModel to the DOM elements of the UI that call for it.
+        var colorMapsElement = $('#colorMapsWindow')[0];
+        var colorMapsViewModel = {
+            colorMapCategories: ko.observableArray(),
+            selectColorMap: function (colorMapName) {
+                console.log("colorMapName: " + colorMapName);
+                var selectedVariable = dataFileViewModel.selectedVariable();
+                if (selectedVariable != null) {
+                    layerPropertiesViewModel.variableColorMap(colorMapName);
+                }
+            }
+        };
+        ko.applyBindings(colorMapsViewModel, colorMapsElement);
+
+        colorMapsViewModel.colorMapCategories.subscribe(function (colorMapCategories) {
+            $('#colorMapsWindow').tooltip();
+        });
+
+        $("#colorMapsWindow").dialog({
+            title: 'Color Maps',
+            width: 320,
+            height: 360,
+            autoOpen: false,
+            modal: false,
+            position: {my: "right top", at: "right bottom", of: window},
+        });
+
+        $("#colorMapsWindow").selectable({filter: 'tr'});
+        //$("#colorMapsWindow").selectable();
+
+        function setColorMaps(colorMapData) {
+            var i, j, catRec, categoryName, categoryDesc, categoryCmaps, cmapRec, colorMapName, colorBarData, colorMaps;
+            // Create the CBARS lookup table
+            var colorMapCategories = []
+            var colorBars = {}
+            for (i in colorMapData) {
+                catRec = colorMapData[i];
+                categoryName = catRec[0];
+                categoryDesc = catRec[1];
+                categoryCmaps = catRec[2];
+                colorMaps = []
+                for (j in categoryCmaps) {
+                    cmapRec = categoryCmaps[j];
+                    colorMapName = cmapRec[0];
+                    colorBarData = cmapRec[1];
+                    colorBars[colorMapName] = colorBarData;
+                    colorMaps.push({
+                        colorMapName: colorMapName,
+                        colorBarData: 'data:image/png;base64,' + colorBarData
+                    });
+                }
+                colorMapCategories.push({
+                    categoryName: categoryName,
+                    categoryDesc: categoryDesc,
+                    colorMaps: colorMaps
+                });
+            }
+            CMAPS = colorMapCategories;
+            CBARS = colorBars;
+            //console.log('CMAPS = ' + JSON.stringify(CMAPS, null, 4));
+            //console.log('CBARS = ' + JSON.stringify(CBARS, null, 4));
+            colorMapsViewModel.colorMapCategories(colorMapCategories);
+        }
+
+        function loadColorMaps() {
+            $.getJSON(SERVER_BASE + 'ColorMaps', function (colorMapData) {
+                setColorMaps(colorMapData);
+            }).fail(function (msg) {
+                console.log('failed to load color maps: ' + JSON.stringify(msg, null, 4));
+                ipc.send('handle-error', 'Failed to load color maps.', msg);
+            });
+        }
+
+        loadColorMaps();
+
+        // <<< Color Bar Window
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // >>> File Info Window
+
+        ipc.on('show-file-info-window', function (event, args) {
+            showWindow('fileInfoWindow');
+        });
+
+        var fileInfoViewModel = {
+            fileName: ko.observable('?'),
+            fileAttributes: ko.observable([]),
+
+            updateFromDataFile: function (dataFile) {
+
+                if (dataFile !== null) {
+                    console.log("File " + dataFile.fileName);
+                    var attributes = [];
+                    for (var attributeName in dataFile.fileInfo.fileAttributes) {
+                        var attributeValue = dataFile.fileInfo.fileAttributes[attributeName];
+                        attributes.push({attributeName: attributeName, attributeValue: attributeValue})
+                    }
+                    attributes.sort(function (a, b) {
+                        return a.attributeName < b.attributeName ? -1
+                                : a.attributeName > b.attributeName ? 1
+                                : 0;
+                    });
+                    this.fileName(dataFile.fileName);
+                    this.fileAttributes(attributes);
+                } else {
+                    this.fileName('?----');
+                    this.fileAttributes([]);
+                }
+            }
+        };
+        ko.applyBindings(fileInfoViewModel, $('#fileInfoWindow')[0]);
+
+        appViewModel.selectedDataFile.subscribe(function (dataFile) {
+            console.log("appViewModel.selectedDataFile: " + appViewModel.selectedDataFile());
+            fileInfoViewModel.updateFromDataFile(dataFile);
+        });
+        fileInfoViewModel.updateFromDataFile(appViewModel.selectedDataFile());
+
+        $("#fileInfoWindow").dialog({
+            title: 'Data File Info',
+            width: 320,
+            height: 400,
+            autoOpen: false,
+            modal: false,
+        });
+
+        // >>> File Info Window
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // >>> Variable Info Window
+
+        ipc.on('show-variable-info-window', function (event, args) {
+            showWindow('variableInfoWindow');
+        });
+
+        var variableInfoViewModel = {
+            variableName: ko.observable('?'),
+            variableAttributes: ko.observable({}),
+
+            updateFromVariable: function (variable) {
+                if (variable !== null) {
+                    var attributes = [];
+                    for (var attributeName in variable.variableInfo) {
+                        var attributeValue = variable.variableInfo[attributeName];
+                        attributes.push({attributeName: attributeName, attributeValue: attributeValue})
+                    }
+                    attributes.sort(function (a, b) {
+                        return a.attributeName < b.attributeName ? -1
+                                : a.attributeName > b.attributeName ? 1
+                                : 0;
+                    });
+                    this.variableName(variable.variableName);
+                    this.variableAttributes(attributes);
+                } else {
+                    this.variableName('?');
+                    this.variableAttributes([]);
+                }
+            }
+        };
+        ko.applyBindings(variableInfoViewModel, $('#variableInfoWindow')[0]);
+
+        dataFileViewModel.selectedVariable.subscribe(function (variable) {
+            variableInfoViewModel.updateFromVariable(variable);
+        });
+        variableInfoViewModel.updateFromVariable(dataFileViewModel.selectedVariable());
+
+        $("#variableInfoWindow").dialog({
+            title: 'Variable Info',
+            width: 320,
+            autoOpen: false,
+            modal: false,
+        });
+
+        // >>> Variable Info Window
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // >>> Time-Series Plot Window
+
+        ipc.on('show-time-series-plot-window', function (event, args) {
+            showWindow('timeSeriesPlotWindow');
+        });
+
+        var timeSeriesPlotViewModel = {};
+        ko.applyBindings(timeSeriesPlotViewModel, $('#timeSeriesPlotWindow')[0]);
+
+        function updateTimeSeriesPlot() {
+            console.log('timeSeriesPlotWindow update triggered');
+            if (!$('#timeSeriesPlotWindow').dialog("isOpen" )) {
+                console.log('timeSeriesPlotWindow is closed');
+                return;
+            }
+            var selectedDataFile = appViewModel.selectedDataFile();
+            if (!Cesium.definedNotNull(selectedDataFile)
+                    || !Cesium.definedNotNull(selectedDataFile.filePath)) {
+                console.log('timeSeriesPlotWindow bad selectedDataFile');
+                return;
+            }
+            var selectedVariable = dataFileViewModel.selectedVariable();
+            if (!Cesium.definedNotNull(selectedVariable)
+                    || !Cesium.definedNotNull(selectedVariable.variableName)) {
+                console.log('timeSeriesPlotWindow bad selectedVariable');
+                return;
+            }
+            var selectedEntity = viewer.selectedEntity;
+            if (!Cesium.definedNotNull(selectedEntity)
+                    || !Cesium.definedNotNull(selectedEntity.position)
+                    || !Cesium.definedNotNull(selectedEntity.poiId)) {
+                console.log('timeSeriesPlotWindow bad selectedEntity');
+                return;
+            }
+            var cartesianPos = selectedEntity.position.getValue(Cesium.JulianDate.now());
+            if (!Cesium.definedNotNull(cartesianPos)) {
+                console.log('timeSeriesPlotWindow bad cartesianPos');
+                return;
+            }
+            var cartographicPos = Cesium.Cartographic.fromCartesian(cartesianPos);
+            getTimeSeriesData(selectedDataFile, selectedVariable, cartographicPos);
+        }
+
+        function getTimeSeriesData(dataFile, variable, cartographicPos) {
+            var uri = SERVER_BASE + 'FileTimeSeries'
+                    + '?file=' + encodeURIComponent(dataFile.filePath)
+                    + '&var=' + encodeURIComponent(variable.variableName)
+                    + '&lat=' + encodeURIComponent(Cesium.Math.toDegrees(cartographicPos.latitude).toString())
+                    + '&lon=' + encodeURIComponent(Cesium.Math.toDegrees(cartographicPos.longitude).toString());
+            console.log('uri = ' + uri);
+            $.getJSON(uri)
+                    .done(function (timeSeriesData) {
+                        //console.log('timeSeriesData = ' + JSON.stringify(timeSeriesData));
+                        if (timeSeriesData.length > 0) {
+                            redrawTimeSeriesPlot(variable, cartographicPos, timeSeriesData);
+                        }
+                    })
+                    .fail(function (msg) {
+                        console.log('error: ' + JSON.stringify(msg, null, 4));
+                        ipc.send('handle-error', 'Failed to retrieve time-series data.', msg);
+                    });
+        }
+
+        var timeSeriesPlotInit = false;
+
+        function redrawTimeSeriesPlot(variable, cartographicPos, timeSeriesData) {
+            var plotTitle = variable.variableName + ' (' + variable.variableInfo.units + ')' + ' at ' + getCartographicPosString(cartographicPos);
+            var yAxisTitle = variable.variableName + ' (' + variable.variableInfo.units + ')';
+            var timeSeriesPlotDiv = document.getElementById('timeSeriesPlotWindow');
+            if (!timeSeriesPlotInit) {
+                // Plotly.js documentation:
+                // * https://plot.ly/javascript/plotlyjs-function-reference/#plotly-newplot
+                // * https://plot.ly/javascript/configuration-options/
+                // * https://plot.ly/javascript/reference/
+                //
+                timeSeriesPlotInit = true;
+                var layout = {
+                    title: plotTitle,
+                    titlefont: {
+                        family: 'Segoe UI, Calibri, Arial, Helvetica, sans-serif',
+                        size: 13
+                    },
+                    font: {
+                        family: 'Segoe UI, Calibri, Arial, Helvetica, sans-serif',
+                        size: 10
+                    },
+                    showlegend: false,
+                    xaxis: {
+                        //title: 'Time',
+                        showgrid: true,
+                        zeroline: true
+                    },
+                    yaxis: {
+                        //title: yAxisTitle,
+                        showgrid: true,
+                        showline: true
+                    },
+                    margin: {
+                        t: 40, b: 45, l: 30, r: 10,
+                    },
+                    autosize: true,
+                    // initially same as dialog size
+                    width: 400,
+                    height: 200
+                };
+                Plotly.newPlot(timeSeriesPlotDiv, timeSeriesData, layout, {
+                    scrollZoom: true,
+                    displayModeBar: false,
+                    displaylogo: false,
+                });
+            } else {
+                timeSeriesPlotDiv.layout.title = plotTitle;
+                //timeSeriesPlotDiv.layout.yaxis.title = yAxisTitle;
+                timeSeriesPlotDiv.data[0].x = timeSeriesData[0];
+                timeSeriesPlotDiv.data[0].y = timeSeriesData[1];
+                Plotly.redraw(timeSeriesPlotDiv);
+            }
+        }
+
+        function resizePlot(id, w, h) {
+            console.log('resizing plot in div "#' + id + '" to ' + w + ' x ' + h);
+            var timeSeriesPlotDiv = document.getElementById(id);
+            var timeSeriesPlotLayout = timeSeriesPlotDiv.layout;
+            timeSeriesPlotLayout.width = w;
+            timeSeriesPlotLayout.height = h;
+            Plotly.restyle(timeSeriesPlotDiv, timeSeriesPlotLayout);
+        }
+
+        appViewModel.selectedDataFile.subscribe(updateTimeSeriesPlot);
+        dataFileViewModel.selectedVariable.subscribe(updateTimeSeriesPlot);
+        ko.getObservable(viewer, '_selectedEntity').subscribe(updateTimeSeriesPlot);
+
+        $("#timeSeriesPlotWindow").dialog({
+            title: 'Time-Series Plot',
+            width: 400,
+            height: 200,
+            autoOpen: false,
+            modal: false,
+            open: function (event, ui) {
+                updateTimeSeriesPlot();
+            },
+            resize: function (event, ui) {
+                resizePlot('timeSeriesPlotWindow', ui.size.width, ui.size.height);
+            }
+        });
+
+        // >>> Time-Series Plot Window
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+        function addTestNE2() {
+            var imageryProvider = new Cesium.UrlTemplateImageryProvider({
+                url: ' http://localhost:8080/ccitbx/ne2/{z}/{y}/{x}.jpg',
+                tilingScheme: new Cesium.GeographicTilingScheme(),
+                maximumLevel: 2,
+                tileWidth: 256,
+                tileHeight: 256
+            });
+
+            var imageryLayer = viewer.imageryLayers.addImageryProvider(imageryProvider);
+            imageryLayer.alpha = 0.5;
+            imageryLayer.show = true;
+            imageryLayer.name = "Natural Earth 2";
+        }
+
+        function addDebugTiles() {
+            // See https://cesiumjs.org/Cesium/Build/Documentation/TileCoordinatesImageryProvider.html
+            var imageryProvider = new Cesium.TileCoordinatesImageryProvider({
+                tilingScheme: new Cesium.GeographicTilingScheme({
+                    //numberOfLevelZeroTilesX: 2,
+                    //numberOfLevelZeroTilesY: 1
+                    numberOfLevelZeroTilesX: 32,
+                    numberOfLevelZeroTilesY: 16
+                }),
+                tileWidth: 270,
+                tileHeight: 270
+            });
+
+            var imageryLayer = viewer.imageryLayers.addImageryProvider(imageryProvider);
+            imageryLayer.alpha = 0.8;
+            imageryLayer.show = true;
+            imageryLayer.name = "Tile Grid";
+        }
+
+        //addTestNE2();
+        //addDebugTiles();
+    });
+</script>
+</body>
+</html>

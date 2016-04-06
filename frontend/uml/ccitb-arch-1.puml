@@ -1,0 +1,23 @@
+@startuml
+
+package "SNAP" {
+    [SnapEngine (Java)]
+}
+
+package "CCI-TB Front End" {
+    [CciTbAppLogic (JS)]
+    [CciTbGUI (HTML/CSS/JS)] -> [CciTbAppLogic (JS)]
+}
+
+package "CCI-TB Back End" {
+    [CciTbService (Py)] - API1
+    [CciTbAppLogic (JS)]-> API1
+
+    API2 - [SnapService (Java)]
+    [CciTbAppLogic (JS)] -> API2
+
+    [CciTbEngine (Py)] <- [CciTbService (Py)]
+    [SnapService (Java)] -> [SnapEngine (Java)]
+}
+
+@enduml
