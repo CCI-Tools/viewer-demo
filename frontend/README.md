@@ -3,7 +3,7 @@
 0. Install [Node.js](https://nodejs.org/en/download/) to get the JavaScript package manager `npm`
 1. cd `../frontend` and run `npm install .`
 2. Download and unpack [Cesium](https://cesiumjs.org/). You should now have:
-    * `prototype2/`
+    * `demo/`
       * `backend/`
       * `frontend/`
         * `Cesium-1.17/`
